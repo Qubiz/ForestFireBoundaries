@@ -19,7 +19,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import robor.forestfireboundaries.bluetooth.MLDPBluetoothLeService;
 
 /**
- * Created by xborre on 27/10/2017.
+ * Created by Mathijs de Groot on 27/10/2017.
  */
 
 public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyCallback{
@@ -27,42 +27,19 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
     private MapFragment mapFragment;
     private GoogleMap googleMap;
 
-    private TextView connectionStatusTextView;
-    private TextView connectedDeviceNameTextView;
-
-    private BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action.equals(MLDPBluetoothLeService.ACTION_BLE_CONNECTED)) {
-                connectedDeviceNameTextView.setText(intent.getStringExtra(MLDPBluetoothLeService.INTENT_EXTRA_NAME));
-                connectionStatusTextView.setText("Status: connected");
-            }
-
-            if (action.equals(MLDPBluetoothLeService.ACTION_BLE_DISCONNECTED)) {
-                connectionStatusTextView.setText("Status: disconnected");
-            }
-        }
-    };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_google_maps);
 
-        connectedDeviceNameTextView = (TextView) findViewById(R.id.connected_device_name);
-        connectionStatusTextView = (TextView) findViewById(R.id.device_connection_status);
-
         mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        registerReceiver(broadcastReceiver, null);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        unregisterReceiver(broadcastReceiver);
     }
 
     @Override
