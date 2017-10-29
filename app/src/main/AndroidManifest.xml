@@ -33,12 +33,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".bluetooth.DeviceScanActivity"
-            android:screenOrientation="portrait"/>
         <activity android:name=".GoogleMapsActivity" />
+        <activity android:name=".bluetooth.DeviceScanActivity" />
 
-        <service android:name=".bluetooth.MLDPBluetoothLeService" />
+        <service android:name=".bluetooth.MLDPConnectionService" />
     </application>
 
 </manifest>

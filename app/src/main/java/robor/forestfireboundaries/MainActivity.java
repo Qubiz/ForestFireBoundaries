@@ -1,31 +1,36 @@
 package robor.forestfireboundaries;
 
 import android.content.Intent;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.view.View;
+import android.support.v7.app.AppCompatActivity;
 import android.widget.Button;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import butterknife.OnClick;
 import robor.forestfireboundaries.bluetooth.DeviceScanActivity;
 
 public class MainActivity extends AppCompatActivity {
+
+    @BindView(R.id.button)
+    Button button;
+    @OnClick(R.id.button)
+    public void onViewClicked() {
+        open();
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        Button button = (Button) findViewById(R.id.button);
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                open();
-            }
-        });
+        ButterKnife.bind(this);
     }
 
     private void open() {
         final Intent intent = new Intent(this, DeviceScanActivity.class);
         startActivity(intent);
     }
+
+
 }

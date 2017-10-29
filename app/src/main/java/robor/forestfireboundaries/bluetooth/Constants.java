@@ -25,7 +25,7 @@ public final class Constants {
             = UUID.fromString("00035b03-58e6-07dd-021a-08123a0003ff");
 
     // Private service for Microchip Transparent
-    public static final UUID UUID_TANSPARENT_PRIVATE_SERVICE
+    public static final UUID UUID_TRANSPARENT_PRIVATE_SERVICE
             = UUID.fromString("49535343-fe7d-4ae5-8fa9-9fafd205e455");
 
     // Characteristic for Transparent Data from BM module, properties - notify, write, write no response
