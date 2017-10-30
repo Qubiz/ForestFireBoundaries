@@ -47,5 +47,16 @@ android:padding="6dip" >
         android:text="Name"
         android:textStyle="bold"
         android:textSize="24sp" />
+
+    <ImageView
+        android:id="@+id/icon_connected"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/icons8_disconnected"
+        android:contentDescription="TODO" />
 </RelativeLayout>
 

@@ -4,7 +4,11 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -20,6 +24,7 @@ import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.Transformation;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -35,6 +40,8 @@ import com.polidea.rxandroidble.scan.ScanSettings;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
+import robor.forestfireboundaries.BaseApplication;
 import robor.forestfireboundaries.R;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
@@ -42,9 +49,6 @@ import rx.android.schedulers.AndroidSchedulers;
 public class DeviceScanActivity extends AppCompatActivity implements AdapterView.OnItemClickListener, ScanResultsAdapter.OnScanResultAddedListener {
 
     private static final String TAG = DeviceScanActivity.class.getSimpleName();
-
-    public static final String INTENT_EXTRA_ADDRESS = "INTENT_EXTRA_ADDRESS";
-    public static final String INTENT_EXTRA_NAME = "INTENT_EXTRA_NAME";
 
     private static final String STATUS_SCANNING = "Scanning...";
     private static final String STATUS_NO_DEVICES_FOUND = "No devices found, please retry a scan...";
@@ -75,6 +79,9 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     @BindView(R.id.status_text_field)   TextView statusTextField;
     @BindView(R.id.progress_bar)        ProgressBar progressBar;
     @BindView(R.id.devices_list_view)   ListView devicesListView;
+    @BindView(R.id.continue_button)     Button continueButton;
+
+    private boolean isBusy = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -88,20 +95,29 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         scanResultsAdapter = new ScanResultsAdapter(this, this, this);
 
         devicesListView.setAdapter(scanResultsAdapter);
+        devicesListView.setOnItemClickListener(this);
 
         stopScanHandler = new Handler();
+
+        continueButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                BaseApplication.getMLDPConnectionService().writeMLDP("Hello!");
+            }
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        registerReceiver(connectionStateReceiver, connectionStateIntentFilter());
         startScan();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-
+        unregisterReceiver(connectionStateReceiver);
         if (isScanning()) {
             clearSubscription();
         }
@@ -131,7 +147,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
         menu.findItem(R.id.menu_item_in_progress).setActionView(new ProgressBar(this));
 
-        if (isScanning()) {
+        if (isBusy) {
             menu.findItem(R.id.menu_item_scan).setVisible(false);
             menu.findItem(R.id.menu_item_in_progress).setVisible(true);
         } else {
@@ -156,13 +172,31 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
-        final RxBleDevice device = scanResultsAdapter.getItem(position).getBleDevice();
+        setBusy(5000);
 
-        if (device != null) {
-            final Intent intent = new Intent();
-            intent.putExtra(INTENT_EXTRA_ADDRESS, device.getMacAddress());
-            intent.putExtra(INTENT_EXTRA_NAME, device.getName());
-            startActivity(intent);
+        final RxBleDevice device = scanResultsAdapter.getItem(position);
+        if (BaseApplication.isMLDPConnectionServiceBound()) {
+            if (BaseApplication.getMLDPConnectionService().isConnected()) {
+                RxBleDevice connectedDevice = BaseApplication.getMLDPConnectionService().getConnectedDevice();
+                if (connectedDevice.getMacAddress().equals(device.getMacAddress())) {
+                    BaseApplication.getMLDPConnectionService().disconnect();
+                    Log.d(TAG, "(DISCONNECT) " + device.getMacAddress());
+                } else {
+                    Log.d(TAG, "(CONNECT) OLD: " + connectedDevice.getMacAddress() + " NEW: " + device.getMacAddress());
+                    BaseApplication.getMLDPConnectionService().disconnect();
+
+                    Handler handler = new Handler();
+                    handler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            BaseApplication.getMLDPConnectionService().connect(device.getMacAddress());
+                        }
+                    },1500);
+                }
+            } else {
+                Log.d(TAG, "(CONNECT) " + device.getMacAddress());
+                BaseApplication.getMLDPConnectionService().connect(device.getMacAddress());
+            }
         }
     }
 
@@ -188,7 +222,13 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     private void startScan() {
         if (ready()) {
-            scanResultsAdapter.clearScanResults();
+            if (BaseApplication.getMLDPConnectionService().isConnected()) {
+                scanResultsAdapter.clearScanResults();
+                scanResultsAdapter.addDevice(BaseApplication.getMLDPConnectionService().getConnectedDevice());
+            } else {
+                scanResultsAdapter.clearScanResults();
+            }
+
 
             statusTextField.setText(STATUS_SCANNING);
 
@@ -197,7 +237,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
                     .doOnUnsubscribe(() -> Log.d(TAG, "onUnsubscribe"))
                     .subscribe(scanResultsAdapter::addScanResult, this::onScanFailure);
 
-            invalidateOptionsMenu();
+            setBusy(10000);
 
             ProgressBarAnimation progressBarAnimation = new ProgressBarAnimation(progressBar, 0, 100);
             progressBarAnimation.setDuration(SCAN_TIME);
@@ -218,9 +258,13 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
         if (scanResultsAdapter.getCount() == 0) {
             statusTextField.setText(STATUS_NO_DEVICES_FOUND);
-        } else {
-            statusTextField.setText("Found " + scanResultsAdapter.getCount() + " devices...");
         }
+
+        if (BaseApplication.getMLDPConnectionService().isConnected()) {
+            String status = "Connected to " + BaseApplication.getMLDPConnectionService().getConnectedDevice().getName();
+            statusTextField.setText(status);
+        }
+
     }
 
     private void clearSubscription() {
@@ -269,8 +313,8 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @SuppressLint("SetTextI18n")
     @Override
-    public void onScanResultAdded(ScanResult scanResult) {
-        Log.d(TAG, "Scan result added: " + scanResult.getBleDevice().getName() + "(" + scanResult.getBleDevice().getMacAddress() + ")");
+    public void onScanResultAdded(RxBleDevice rxBleDevice) {
+        Log.d(TAG, "Scan result added: " + rxBleDevice.getName() + "(" + rxBleDevice.getMacAddress() + ")");
 
         int count = scanResultsAdapter.getCount();
 
@@ -299,5 +343,63 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             float value = from + (to - from) * interpolatedTime;
             progressBar.setProgress((int) value);
         }
+    }
+
+    private BroadcastReceiver connectionStateReceiver = new BroadcastReceiver() {
+        String status = "";
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (action != null) {
+                switch (action) {
+                    case MLDPConnectionService.ACTION_CONNECTED:
+                        continueButton.setEnabled(true);
+                        status = "Connected to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_DISCONNECTED:
+                        continueButton.setEnabled(false);
+                        status = "Disconnected from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_CONNECTING:
+                        continueButton.setEnabled(false);
+                        status = "Connecting to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_DISCONNECTING:
+                        continueButton.setEnabled(false);
+                        status = "Disconnecting from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                }
+            }
+            statusTextField.setText(status);
+            scanResultsAdapter.notifyDataSetChanged();
+        }
+    };
+
+    private static IntentFilter connectionStateIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MLDPConnectionService.ACTION_CONNECTED);
+        intentFilter.addAction(MLDPConnectionService.ACTION_DISCONNECTING);
+        intentFilter.addAction(MLDPConnectionService.ACTION_DISCONNECTED);
+        intentFilter.addAction(MLDPConnectionService.ACTION_CONNECTING);
+        return intentFilter;
+    }
+
+    private void setBusy(long time) {
+        if (time > 0) {
+            isBusy = true;
+            devicesListView.setOnItemClickListener(null);
+            Handler handler = new Handler();
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    setBusy(0);
+                }
+            }, time);
+        } else {
+            isBusy = false;
+            devicesListView.setOnItemClickListener(this);
+        }
+
+        invalidateOptionsMenu();
     }
 }

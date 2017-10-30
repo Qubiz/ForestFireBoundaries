@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -14,6 +15,7 @@ import com.polidea.rxandroidble.RxBleClient;
 import com.polidea.rxandroidble.RxBleConnection;
 import com.polidea.rxandroidble.RxBleDevice;
 import com.polidea.rxandroidble.RxBleDeviceServices;
+import com.polidea.rxandroidble.internal.connection.RxBleGattCallback_Factory;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,14 @@ import rx.android.schedulers.AndroidSchedulers;
 public class MLDPConnectionService extends Service{
 
     private static final String TAG = MLDPConnectionService.class.getSimpleName();
+
+    public static final String ACTION_CONNECTED = "robor.forestfireboundaries.bluetooth.ACTION_CONNECTED";
+    public static final String ACTION_CONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_CONNECTING";
+    public static final String ACTION_DISCONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTING";
+    public static final String ACTION_DISCONNECTED = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTED";
+
+    public static final String INTENT_EXTRA_ADDRESS = "INTENT_EXTRA_ADDRESS";
+    public static final String INTENT_EXTRA_NAME = "INTENT_EXTRA_NAME";
 
     private final IBinder binder = new LocalBinder();
 
@@ -39,7 +49,7 @@ public class MLDPConnectionService extends Service{
     private BluetoothGattCharacteristic transparentRxDataCharacteristic;
 
     public class LocalBinder extends Binder {
-        MLDPConnectionService getService() {
+        public MLDPConnectionService getService() {
             return MLDPConnectionService.this;
         }
     }
@@ -48,7 +58,6 @@ public class MLDPConnectionService extends Service{
     public void onCreate() {
         super.onCreate();
         rxBleClient = RxBleClient.create(this);
-
     }
 
     @Nullable
@@ -64,9 +73,10 @@ public class MLDPConnectionService extends Service{
 
     public void connect(final String macAddress) {
         rxBleDevice = rxBleClient.getBleDevice(macAddress);
+
         connectionStateSubscription = rxBleDevice.observeConnectionStateChanges()
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this::onConnectionStateChanged);
+                .subscribe(this::onConnectionStateChanged, this::onObserveConnectionStateChangeFailure);
 
         connectionSubscription = rxBleDevice.establishConnection(false)
                 .observeOn(AndroidSchedulers.mainThread())
@@ -74,10 +84,18 @@ public class MLDPConnectionService extends Service{
 
     }
 
+    private void onObserveConnectionStateChangeFailure(Throwable throwable) {
+        Log.d(TAG, "onObserveConnectionStateChangeFailure", throwable);
+    }
+
     private void onConnectionReceived(RxBleConnection rxBleConnection) {
         this.rxBleConnection = rxBleConnection;
         rxBleConnection.discoverServices()
-                .subscribe(this::onDiscoveredServicesReceived);
+                .subscribe(this::onDiscoveredServicesReceived, this::onDiscoverServicesFailure);
+    }
+
+    private void onDiscoverServicesFailure(Throwable throwable) {
+        Log.d(TAG, "onDiscoveredServicesFailure", throwable);
     }
 
     private void onDiscoveredServicesReceived(RxBleDeviceServices rxBleDeviceServices) {
@@ -147,32 +165,51 @@ public class MLDPConnectionService extends Service{
 
     public void disconnect() {
         if (isConnected()) {
-           connectionSubscription.unsubscribe();
-           connectionSubscription = null;
+            if (connectionSubscription != null) {
+                connectionSubscription.unsubscribe();
+                connectionSubscription = null;
+            }
         }
     }
 
     public boolean isConnected() {
-        return rxBleDevice.getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTED;
+        return rxBleDevice != null && rxBleDevice.getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTED;
     }
 
-    private void onConnectionStateChanged(RxBleConnection.RxBleConnectionState state) {
-        // TODO:  Handle the connection state changes
-        Log.d(TAG, state.toString());
-        switch (state) {
-            case CONNECTING:
-                break;
-            case CONNECTED:
-                break;
-            case DISCONNECTED:
-                break;
-            case DISCONNECTING:
-                break;
+    public RxBleDevice getConnectedDevice() {
+        if (isConnected()) {
+            return rxBleDevice;
+        } else {
+            return null;
         }
     }
 
+    private void onConnectionStateChanged(RxBleConnection.RxBleConnectionState state) {
+        Intent intent = new Intent();
+
+        Log.d(TAG, state.toString());
+        switch (state) {
+            case CONNECTING:
+                intent.setAction(ACTION_CONNECTING);
+                break;
+            case CONNECTED:
+                intent.setAction(ACTION_CONNECTED);
+                break;
+            case DISCONNECTED:
+                intent.setAction(ACTION_DISCONNECTED);
+                break;
+            case DISCONNECTING:
+                intent.setAction(ACTION_DISCONNECTING);
+                break;
+        }
+
+        intent.putExtra(INTENT_EXTRA_NAME, rxBleDevice.getName());
+        intent.putExtra(INTENT_EXTRA_ADDRESS, rxBleDevice.getMacAddress());
+        sendBroadcast(intent);
+    }
+
     private void onConnectionFailure(Throwable throwable) {
-        // TODO: Handle connection failures
+        Log.d(TAG,"onConnectionFailure", throwable);
     }
 
     public void writeMLDP(String string) {
@@ -210,5 +247,11 @@ public class MLDPConnectionService extends Service{
     private boolean isCharacteristicWriteable(BluetoothGattCharacteristic characteristic) {
         return (characteristic.getProperties() & (BluetoothGattCharacteristic.PROPERTY_WRITE
                 | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        disconnect();
     }
 }
