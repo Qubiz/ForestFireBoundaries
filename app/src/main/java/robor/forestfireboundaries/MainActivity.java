@@ -8,7 +8,12 @@ import android.widget.Button;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+
 import robor.forestfireboundaries.bluetooth.DeviceScanActivity;
+
+/**
+ * Created by Mathijs de Groot on 27/10/2017.
+ */
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,6 +36,4 @@ public class MainActivity extends AppCompatActivity {
         final Intent intent = new Intent(this, DeviceScanActivity.class);
         startActivity(intent);
     }
-
-
 }

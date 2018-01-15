@@ -8,12 +8,13 @@ import android.view.MenuItem;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.LatLng;
 
 /**
  * Created by Mathijs de Groot on 27/10/2017.
  */
 
-public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyCallback{
+public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private MapFragment mapFragment;
     private GoogleMap googleMap;

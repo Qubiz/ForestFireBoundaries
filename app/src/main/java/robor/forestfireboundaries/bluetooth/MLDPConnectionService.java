@@ -25,16 +25,13 @@ import rx.android.schedulers.AndroidSchedulers;
 
 public class MLDPConnectionService extends Service{
 
-    private static final String TAG = MLDPConnectionService.class.getSimpleName();
-
     public static final String ACTION_CONNECTED = "robor.forestfireboundaries.bluetooth.ACTION_CONNECTED";
     public static final String ACTION_CONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_CONNECTING";
     public static final String ACTION_DISCONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTING";
     public static final String ACTION_DISCONNECTED = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTED";
-
     public static final String INTENT_EXTRA_ADDRESS = "INTENT_EXTRA_ADDRESS";
     public static final String INTENT_EXTRA_NAME = "INTENT_EXTRA_NAME";
-
+    private static final String TAG = MLDPConnectionService.class.getSimpleName();
     private final IBinder binder = new LocalBinder();
 
     private RxBleClient rxBleClient;
@@ -47,12 +44,6 @@ public class MLDPConnectionService extends Service{
     private BluetoothGattCharacteristic mldpDataCharacteristic;
     private BluetoothGattCharacteristic transparentTxDataCharacteristic;
     private BluetoothGattCharacteristic transparentRxDataCharacteristic;
-
-    public class LocalBinder extends Binder {
-        public MLDPConnectionService getService() {
-            return MLDPConnectionService.this;
-        }
-    }
 
     @Override
     public void onCreate() {
@@ -253,5 +244,11 @@ public class MLDPConnectionService extends Service{
     public void onDestroy() {
         super.onDestroy();
         disconnect();
+    }
+
+    public class LocalBinder extends Binder {
+        public MLDPConnectionService getService() {
+            return MLDPConnectionService.this;
+        }
     }
 }

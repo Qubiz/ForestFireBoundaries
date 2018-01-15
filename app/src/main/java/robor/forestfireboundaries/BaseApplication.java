@@ -11,7 +11,7 @@ import android.util.Log;
 import robor.forestfireboundaries.bluetooth.MLDPConnectionService;
 
 /**
- * Created by xborre on 30/10/2017.
+ * Created by Mathijs de Groot on 30/10/2017.
  */
 
 public class BaseApplication extends Application {
@@ -25,7 +25,7 @@ public class BaseApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
-        Intent intent =  new Intent(this, MLDPConnectionService.class);
+        Intent intent = new Intent(this, MLDPConnectionService.class);
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 

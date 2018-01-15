@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message Hotspot {
+    double latitude = 1;
+    double longitude = 2;
+    double temperature = 3;
+}
