@@ -30,6 +30,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.polidea.rxandroidble.RxBleClient;
 import com.polidea.rxandroidble.RxBleDevice;
 import com.polidea.rxandroidble.exceptions.BleScanException;
@@ -43,6 +44,7 @@ import butterknife.ButterKnife;
 import butterknife.OnClick;
 import robor.forestfireboundaries.BaseApplication;
 import robor.forestfireboundaries.R;
+import robor.forestfireboundaries.protobuf.HotspotDataProtos;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 
@@ -56,7 +58,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     public static final int REQUEST_ENABLE_BLUETOOTH = 1;
     public static final int REQUEST_PERMISSION_LOCATION = 2;
 
-    private static final long SCAN_TIME = 10000;
+    private static final long SCAN_TIME = 5000;
 
     private static final ScanSettings SCAN_SETTINGS = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -76,10 +78,10 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     private Subscription        scanSubscription;
     private Handler             stopScanHandler;
 
-    @BindView(R.id.status_text_field)   TextView statusTextField;
+    @BindView(R.id.status_text_field)   TextView    statusTextField;
     @BindView(R.id.progress_bar)        ProgressBar progressBar;
-    @BindView(R.id.devices_list_view)   ListView devicesListView;
-    @BindView(R.id.continue_button)     Button continueButton;
+    @BindView(R.id.devices_list_view)   ListView    devicesListView;
+    @BindView(R.id.continue_button)     Button      continueButton;
 
     private boolean isBusy = false;
 
@@ -111,6 +113,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     protected void onResume() {
         super.onResume();
         registerReceiver(connectionStateReceiver, connectionStateIntentFilter());
+        registerReceiver(dataAvailableReceiver, availableDataIntentFilter());
         startScan();
     }
 
@@ -118,6 +121,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     protected void onPause() {
         super.onPause();
         unregisterReceiver(connectionStateReceiver);
+        unregisterReceiver(dataAvailableReceiver);
         if (isScanning()) {
             clearSubscription();
         }
@@ -345,6 +349,26 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         }
     }
 
+    private BroadcastReceiver dataAvailableReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (action != null) {
+                if (action.equals(MLDPConnectionService.ACTION_DATA_RECEIVED)) {
+                    byte[] data = MLDPConnectionService.getAvailableData();
+                    if (data != null) {
+                        try {
+                            HotspotDataProtos.Hotspot hotspot = HotspotDataProtos.Hotspot.parseFrom(data);
+                            Log.d(TAG, hotspot.toString());
+                        } catch (InvalidProtocolBufferException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+    };
+
     private BroadcastReceiver connectionStateReceiver = new BroadcastReceiver() {
         String status = "";
         @Override
@@ -381,6 +405,12 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         intentFilter.addAction(MLDPConnectionService.ACTION_DISCONNECTING);
         intentFilter.addAction(MLDPConnectionService.ACTION_DISCONNECTED);
         intentFilter.addAction(MLDPConnectionService.ACTION_CONNECTING);
+        return intentFilter;
+    }
+
+    private static IntentFilter availableDataIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MLDPConnectionService.ACTION_DATA_RECEIVED);
         return intentFilter;
     }
 
