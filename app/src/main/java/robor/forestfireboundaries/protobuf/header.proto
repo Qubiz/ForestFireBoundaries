@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+option java_package = "robor.forestfireboundaries.protobuf";
+option java_outer_classname = "HeaderProtos";
+
+message Header {
+    fixed32 message_id = 1;
+    fixed32 message_length = 2;
+}

@@ -5,26 +5,26 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import com.polidea.rxandroidble.RxBleClient;
 import com.polidea.rxandroidble.RxBleConnection;
 import com.polidea.rxandroidble.RxBleDevice;
 import com.polidea.rxandroidble.RxBleDeviceServices;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
 
-import javax.annotation.CheckForNull;
+import robor.forestfireboundaries.protobuf.HeaderProtos;
 
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
@@ -35,7 +35,7 @@ public class MLDPConnectionService extends Service{
     public static final String ACTION_CONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_CONNECTING";
     public static final String ACTION_DISCONNECTING = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTING";
     public static final String ACTION_DISCONNECTED = "robor.forestfireboundaries.bluetooth.ACTION_DISCONNECTED";
-    public static final String ACTION_DATA_RECEIVED = "robor.forestfireboundaries.bluetooth.ACTION_DATA_RECEIVED";
+    public static final String ACTION_MESSAGE_RECEIVED = "robor.forestfireboundaries.bluetooth.ACTION_MESSAGE_RECEIVED";
     public static final String INTENT_EXTRA_ADDRESS = "INTENT_EXTRA_ADDRESS";
     public static final String INTENT_EXTRA_NAME = "INTENT_EXTRA_NAME";
     private static final String TAG = MLDPConnectionService.class.getSimpleName();
@@ -53,10 +53,28 @@ public class MLDPConnectionService extends Service{
     private BluetoothGattCharacteristic transparentTxDataCharacteristic;
     private BluetoothGattCharacteristic transparentRxDataCharacteristic;
 
-    private static boolean receivingDataFlag = false;
+    private static boolean newMessage = false;
     private static boolean dataAvailable = false;
+    private static ByteString byteStringBuffer = ByteString.EMPTY;
+    private int bytesToRead = -1;
+    private int bytesRead = 0;
 
-    static ByteArrayOutputStream stream;
+    private static Queue<ByteString> messageQueue = new LinkedList<>();
+
+    public static IntentFilter connectionStateIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(ACTION_CONNECTED);
+        intentFilter.addAction(ACTION_DISCONNECTING);
+        intentFilter.addAction(ACTION_DISCONNECTED);
+        intentFilter.addAction(ACTION_CONNECTING);
+        return intentFilter;
+    }
+
+    public static IntentFilter messageAvailableIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(MLDPConnectionService.ACTION_MESSAGE_RECEIVED);
+        return intentFilter;
+    }
 
     @Override
     public void onCreate() {
@@ -223,42 +241,77 @@ public class MLDPConnectionService extends Service{
         Log.d(TAG,"onConnectionFailure", throwable);
     }
 
+    /**
+     * Incoming data looks like:
+     *
+     *  [ HEADER ] [ MESSAGE ] [ ... ]
+     *
+     * Header [10 bytes]:
+     * - MessageID (int32)
+     * - MessageLength (int32)
+     *
+     * Message [MessageLength]:
+     * - Data
+     *
+     * @param data
+     */
     private void onDataReceived(byte[] data) {
-        if (!receivingDataFlag) {
-            receivingDataFlag = true;
-            if (stream == null) {
-                stream = new ByteArrayOutputStream();
-            } else {
-                stream.reset();
+        byteStringBuffer = byteStringBuffer.concat(ByteString.copyFrom(data));
+        bytesRead += data.length;
+
+        if (bytesRead >= 10 && bytesToRead == -1) {
+            try {
+                HeaderProtos.Header header = HeaderProtos.Header.parseFrom(byteStringBuffer.substring(0, 10));
+                messageQueue.add(ByteString.copyFrom(header.toByteArray()));
+                bytesToRead = header.getMessageLength();
+                byteStringBuffer = byteStringBuffer.substring(10);
+                Log.d(TAG, "The header has been fully received...");
+            } catch (InvalidProtocolBufferException e) {
+                e.printStackTrace();
             }
+        } else if (bytesToRead != -1) {
+            // Header has been read, therefore the length of the upcoming message is known.
+            if (bytesRead - 10 < bytesToRead) {
+                // The complete message has not yet been received.
+                // TODO: Create a timeout??
+                Log.d(TAG, "The message has not yet been fully received... [" + (bytesRead - 10) + " / " + bytesToRead + "] bytes");
+            } else {
+                Log.d(TAG, "Message has been fully received...");
+                // We have read the complete message or more.
+
+                // Get the message from the buffer
+                ByteString message = byteStringBuffer.substring(0, bytesToRead);
+
+                // Add the message to the queue
+                messageQueue.add(message);
+
+                // Notify (broadcast) that there is a new message available.
+                Intent intent = new Intent();
+                intent.setAction(ACTION_MESSAGE_RECEIVED);
+                sendBroadcast(intent);
+
+                // Remove the read message from the buffer
+                byteStringBuffer = byteStringBuffer.substring(bytesToRead);
+
+                // Reset bytesToRead
+                bytesToRead = -1;
+
+                // Update the number of bytes that are left in the buffer.
+                bytesRead = byteStringBuffer.size();
+            }
+        } else {
+            // The header has not been completely read
+            // TODO: Create a timeout??
+            Log.d(TAG, "Header has not yet been fully received... [" + bytesRead + " / 10] bytes" );
         }
 
-        StringBuilder sb = new StringBuilder();
-        for (byte b : data) {
-            sb.append(String.format("%02X ", b));
-        }
 
-        Log.d(TAG, sb.toString());
-
-        ByteString byteString = ByteString.copyFrom(data);
-
-        try {
-            byteString.writeTo(stream);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
-//        if(byteString.endsWith(ByteString.copyFrom())) {
-//            Intent intent = new Intent();
-//
-//            intent.setAction(ACTION_DATA_RECEIVED);
-//
-//            sendBroadcast(intent);
-//
-//            receivingDataFlag = false;
-//            dataAvailable = true;
+//        StringBuilder sb = new StringBuilder();
+//        for (byte b : data) {
+//            sb.append(String.format("%02X ", b));
 //        }
+//
+//        Log.d(TAG, sb.toString());
     }
 
     public void writeMLDP(String string) {
@@ -299,25 +352,25 @@ public class MLDPConnectionService extends Service{
                 | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0;
     }
 
-    public static byte[] getAvailableData() {
-        Log.d(TAG, "getAvailableData()");
-        byte[] data;
+    public static ByteString getNextAvailableMessage() {
+        Log.d(TAG, "getNextAvailableMessage()");
+
+        ByteString data;
         if (isDataAvailable()) {
-            data = stream.toByteArray();
+            data = messageQueue.remove();
         } else {
             data = null;
         }
 
-        dataAvailable = false;
         return data;
     }
 
     public static boolean isDataAvailable() {
-        return dataAvailable;
+        return !messageQueue.isEmpty();
     }
 
     public static boolean isReceivingData() {
-        return receivingDataFlag;
+        return newMessage;
     }
 
     @Override

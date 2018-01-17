@@ -27,15 +27,21 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyC78Sm5lCHDka6d-A2yoFy4EjZ6NfLJxbU" />
 
-        <activity android:name=".MainActivity">
+        <activity
+            android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".GoogleMapsActivity" />
-        <activity android:name=".bluetooth.DeviceScanActivity" />
+
+        <activity
+            android:name=".GoogleMapsActivity">
+        </activity>
+
+        <activity
+            android:name=".bluetooth.DeviceScanActivity">
+        </activity>
 
         <service android:name=".bluetooth.MLDPConnectionService" />
     </application>
