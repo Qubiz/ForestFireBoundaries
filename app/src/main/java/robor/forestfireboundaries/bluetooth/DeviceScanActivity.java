@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -29,8 +28,6 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.polidea.rxandroidble.RxBleClient;
 import com.polidea.rxandroidble.RxBleDevice;
 import com.polidea.rxandroidble.exceptions.BleScanException;
@@ -43,8 +40,6 @@ import butterknife.ButterKnife;
 import robor.forestfireboundaries.BaseApplication;
 import robor.forestfireboundaries.GoogleMapsActivity;
 import robor.forestfireboundaries.R;
-import robor.forestfireboundaries.protobuf.HeaderProtos;
-import robor.forestfireboundaries.protobuf.HotspotDataProtos;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 
@@ -357,43 +352,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             progressBar.setProgress((int) value);
         }
     }
-
-//    private BroadcastReceiver dataAvailableReceiver = new BroadcastReceiver() {
-//        @Override
-//        public void onReceive(Context context, Intent intent) {
-//            final String action = intent.getAction();
-//            if (action != null) {
-//                if (action.equals(MLDPConnectionService.ACTION_MESSAGE_RECEIVED)) {
-//                    ByteString data = MLDPConnectionService.getNextAvailableMessage();
-//                    if (data != null) {
-//                        try {
-//                            HeaderProtos.Header header = HeaderProtos.Header.parseFrom(data);
-//                            if (header.getMessageId() == HotspotDataProtos.Hotspot.getDescriptor().getName().hashCode()) {
-//                                data = MLDPConnectionService.getNextAvailableMessage();
-//                                if (data != null) {
-//                                    Log.d(TAG, "Trying to parse Hotspot message...");
-//                                    HotspotDataProtos.Hotspot hotspot = HotspotDataProtos.Hotspot.parseFrom(data);
-//                                    Log.d(TAG, "Hotspot: "
-//                                            + hotspot.getLatitude()
-//                                            + " / "
-//                                            + hotspot.getLongitude()
-//                                            + " / "
-//                                            + hotspot.getTemperature()
-//                                            + " (Lat / Lng / Temp)");
-//                                } else {
-//                                    Log.d(TAG, "(INNER) Data is null...");
-//                                }
-//                            }
-//                        } catch (InvalidProtocolBufferException e) {
-//                            e.printStackTrace();
-//                        }
-//                    } else {
-//                        Log.d(TAG, "(OUTER) Data is null...");
-//                    }
-//                }
-//            }
-//        }
-//    };
 
     private BroadcastReceiver connectionStateReceiver = new BroadcastReceiver() {
         String status = "";

@@ -3,6 +3,7 @@ package robor.forestfireboundaries;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.*;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -16,6 +17,8 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.util.Random;
+
 import robor.forestfireboundaries.bluetooth.DeviceScanActivity;
 import robor.forestfireboundaries.bluetooth.MLDPConnectionService;
 import robor.forestfireboundaries.protobuf.HeaderProtos;
@@ -28,12 +31,15 @@ import robor.forestfireboundaries.protobuf.HotspotDataProtos;
 public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private static final String TAG = GoogleMapsActivity.class.getSimpleName();
+
     private static final int HOTSPOT_MESSAGE_HASH_CODE = HotspotDataProtos.Hotspot.getDescriptor().getName().hashCode();
 
     private MapFragment mapFragment;
     private GoogleMap googleMap;
 
-    private boolean recording = false;
+    private boolean recording = true;
+
+    private LinearGradient gradient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +48,22 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
 
         mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        gradient = new LinearGradient(Color.GREEN, Color.MAGENTA);
+        gradient.getColor(0.5);
+        //LinearGradient.print(gradient);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        registerReceiver(messageAvailableReceiver, MLDPConnectionService.messageAvailableIntentFilter());
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(messageAvailableReceiver);
     }
 
     @Override
@@ -83,13 +105,7 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
             final String action = intent.getAction();
             if (action != null) {
                 if (action.equals(MLDPConnectionService.ACTION_MESSAGE_RECEIVED)) {
-                    ByteString data = MLDPConnectionService.getNextAvailableMessage();
-
-                    if (data != null) {
-
-                    } else {
-
-                    }
+                    processHeader();
                 }
             }
         }
@@ -118,7 +134,11 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
             if (messageId == HOTSPOT_MESSAGE_HASH_CODE) {
                 HotspotDataProtos.Hotspot hotspot = HotspotDataProtos.Hotspot.parseFrom(data);
                 if (recording) {
-                     // TODO: Show marker on map
+                    double r = new Random().nextDouble();
+                    int color = gradient.getColor(r);
+                    DotMarker dotMarker = new DotMarker(new LatLng(hotspot.getLatitude(), hotspot.getLongitude()),
+                            color, googleMap, this);
+                    dotMarker.setSnippet("Value: " + r);
                 } else {
                     // TODO: Do something when we are not interested in showing data on map
                 }

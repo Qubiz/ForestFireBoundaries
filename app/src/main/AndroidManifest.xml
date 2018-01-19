@@ -36,7 +36,8 @@
         </activity>
 
         <activity
-            android:name=".GoogleMapsActivity">
+            android:name=".GoogleMapsActivity"
+            android:launchMode="singleInstance">
         </activity>
 
         <activity
