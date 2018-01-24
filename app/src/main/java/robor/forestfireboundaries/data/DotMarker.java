@@ -1,18 +1,20 @@
-package robor.forestfireboundaries;
+package robor.forestfireboundaries.data;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
+import android.support.annotation.ColorInt;
 import android.support.v4.content.ContextCompat;
 
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import robor.forestfireboundaries.R;
 
 /**
  * Created by Mathijs de Groot on 18/01/2018.
@@ -20,65 +22,99 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 public class DotMarker {
 
+    private static final String TAG = DotMarker.class.getSimpleName();
+
     private Context context;
-
     private GoogleMap googleMap;
-
-    private Marker marker;
-
     private MarkerOptions markerOptions;
-
+    private Marker marker;
+    private Drawable icon;
     private int color;
 
-    private Drawable icon;
+    private boolean visible = false;
 
-    public DotMarker(LatLng position, int color, GoogleMap googleMap, Context context) {
+    public DotMarker(LatLng position, Context context) {
         this.context = context;
-        this.googleMap = googleMap;
 
         icon = ContextCompat.getDrawable(context, R.drawable.dot);
-        setColor(color);
 
         markerOptions = new MarkerOptions()
                 .position(position)
                 .icon(BitmapDescriptorFactory.fromBitmap(getBitmapFromDrawable(icon)))
                 .title("" + position.latitude + " / " + position.longitude);
-
-        marker = googleMap.addMarker(markerOptions);
     }
 
     private Bitmap getBitmapFromDrawable(Drawable drawable) {
-        Canvas canvas = new Canvas();
         Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+
+        Canvas canvas = new Canvas();
         canvas.setBitmap(bitmap);
+
         drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
         drawable.draw(canvas);
 
         return bitmap;
     }
 
-    public void setColor(int color) {
+    public void setColor(@ColorInt int color) {
         this.color = color;
         icon.mutate().setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+
+        markerOptions.icon(BitmapDescriptorFactory.fromBitmap(getBitmapFromDrawable(icon)));
+        updateOnMap();
     }
 
     public LatLng getPosition() {
-        return marker.getPosition();
+       return markerOptions.getPosition();
     }
 
     public void setPosition(LatLng position) {
-        marker.setPosition(position);
+        markerOptions.position(position);
+        updateOnMap();
     }
 
     public void setVisible(boolean visible) {
-        marker.setVisible(visible);
+        markerOptions.visible(visible);
+        updateOnMap();
     }
 
     public void setTitle(String title) {
-        marker.setTitle(title);
+        markerOptions.title(title);
+        updateOnMap();
     }
 
     public void setSnippet(String snippet) {
-        marker.setSnippet(snippet);
+        markerOptions.snippet(snippet);
+        updateOnMap();
     }
+
+    public void addToMap(GoogleMap googleMap) {
+        if (isAddedToMap()) {
+            marker.remove();
+        }
+
+        marker = googleMap.addMarker(markerOptions);
+        this.googleMap = googleMap;
+    }
+
+    public void removeFromMap() {
+        if (isAddedToMap()) {
+            marker.remove();
+        }
+
+        googleMap = null;
+    }
+
+    private void updateOnMap() {
+        if (isAddedToMap()) {
+            marker.remove();
+            marker = googleMap.addMarker(markerOptions);
+        }
+    }
+
+    private boolean isAddedToMap() {
+        return googleMap != null;
+    }
+
+
 }

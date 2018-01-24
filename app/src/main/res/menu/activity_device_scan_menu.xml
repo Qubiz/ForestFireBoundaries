@@ -4,7 +4,7 @@
 
     <item android:id="@+id/menu_item_scan"
         android:title="Scan"
-        android:icon="@drawable/icons8_search"
+        android:icon="@drawable/icons8_search_primary_dark"
         app:showAsAction="always"/>
 
     <item android:id="@+id/menu_item_in_progress"

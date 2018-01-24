@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ParcelUuid;
@@ -15,6 +16,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -28,6 +30,8 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mikepenz.materialdrawer.Drawer;
+import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
 import com.polidea.rxandroidble.RxBleClient;
 import com.polidea.rxandroidble.RxBleDevice;
 import com.polidea.rxandroidble.exceptions.BleScanException;
@@ -40,10 +44,12 @@ import butterknife.ButterKnife;
 import robor.forestfireboundaries.BaseApplication;
 import robor.forestfireboundaries.GoogleMapsActivity;
 import robor.forestfireboundaries.R;
+import robor.forestfireboundaries.drawer.DrawerNavigation;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 
-public class DeviceScanActivity extends AppCompatActivity implements AdapterView.OnItemClickListener, ScanResultsAdapter.OnScanResultAddedListener {
+public class DeviceScanActivity extends AppCompatActivity implements AdapterView.OnItemClickListener,
+        ScanResultsAdapter.OnScanResultAddedListener, Drawer.OnDrawerItemClickListener {
 
     private static final String TAG = DeviceScanActivity.class.getSimpleName();
 
@@ -73,20 +79,34 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     private Subscription        scanSubscription;
     private Handler             stopScanHandler;
 
-    @BindView(R.id.status_text_field)   TextView    statusTextField;
-    @BindView(R.id.progress_bar)        ProgressBar progressBar;
-    @BindView(R.id.devices_list_view)   ListView    devicesListView;
-    @BindView(R.id.continue_button)     Button      continueButton;
+    @BindView(R.id.status_text_field)
+    TextView statusTextField;
+    @BindView(R.id.progress_bar)
+    ProgressBar progressBar;
+    @BindView(R.id.devices_list_view)
+    ListView devicesListView;
+    @BindView(R.id.continue_button)
+    Button continueButton;
+    @BindView(R.id.toolbar)
+    Toolbar toolbar;
+
+    private Drawer drawer;
 
     private boolean isBusy = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate()");
-
         setContentView(R.layout.activity_device_scan);
+
         ButterKnife.bind(this);
+
+        toolbar.setBackgroundColor(Color.TRANSPARENT);
+        toolbar.setTitle("Device Scan");
+
+        setSupportActionBar(toolbar);
+
+        drawer = DrawerNavigation.getDrawer(this, toolbar, this);
 
         rxBleClient = RxBleClient.create(this);
         RxBleClient.setLogLevel(RxBleLog.DEBUG);
@@ -102,17 +122,33 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             final Intent intent = new Intent(this, GoogleMapsActivity.class);
             startActivity(intent);
         });
+
+        Log.d(TAG, "onCreate()");
+    }
+
+    private void openGoogleMapsActivity() {
+        Intent intent = new Intent(this, GoogleMapsActivity.class);
+        startActivity(intent);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d(TAG, "onResume()");
 
         registerReceiver(connectionStateReceiver, MLDPConnectionService.connectionStateIntentFilter());
-//        registerReceiver(dataAvailableReceiver, MLDPConnectionService.messageAvailableIntentFilter());
 
-        startScan();
+        if (drawer.isDrawerOpen()) {
+            drawer.closeDrawer();
+        }
+
+        drawer.setSelection(DrawerNavigation.DEVICE_SCAN_ACTIVITIY_ID, false);
+
+        Log.d(TAG, "Current selection: " + drawer.getCurrentSelection());
+        Log.d(TAG, "Position: " + drawer.getPosition(DrawerNavigation.DEVICE_SCAN_ACTIVITIY_ID));
+        Log.d(TAG, "ID: " + DrawerNavigation.DEVICE_SCAN_ACTIVITIY_ID);
+        Log.d(TAG, "onResume()");
+
+
     }
 
     @Override
@@ -182,8 +218,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
-        setBusy(5000);
-
         final RxBleDevice device = scanResultsAdapter.getItem(position);
         if (BaseApplication.isMLDPConnectionServiceBound()) {
             if (BaseApplication.getMLDPConnectionService().isConnected()) {
@@ -235,7 +269,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             scanResultsAdapter.clearScanResults();
             if (BaseApplication.getMLDPConnectionService().isConnected()) {
                 scanResultsAdapter.addDevice(BaseApplication.getMLDPConnectionService().getConnectedDevice());
-                continueButton.setEnabled(true);
             }
 
             statusTextField.setText(STATUS_SCANNING);
@@ -243,6 +276,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             scanSubscription = rxBleClient.scanBleDevices(SCAN_SETTINGS, SCAN_FILTER_MLDP_PRIVATE_SERVICE, SCAN_FILTER_TRANSPARENT_PRIVATE_SERVICE)
                     .observeOn(AndroidSchedulers.mainThread())
                     .doOnUnsubscribe(() -> Log.d(TAG, "onUnsubscribe"))
+                    .doOnError(throwable -> Log.d(TAG, throwable.getMessage()))
                     .subscribe(scanResultsAdapter::addScanResult, this::onScanFailure);
 
             setBusy(SCAN_TIME);
@@ -333,6 +367,22 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         }
     }
 
+    @Override
+    public boolean onItemClick(View view, int position, IDrawerItem drawerItem) {
+        if (drawerItem.getIdentifier() == DrawerNavigation.GOOGLE_MAPS_ACTIVITY_ID) {
+            Intent intent = new Intent(this, GoogleMapsActivity.class);
+            startActivity(intent);
+            return true;
+        }
+
+        if (drawerItem.getIdentifier() == DrawerNavigation.DEVICE_SCAN_ACTIVITIY_ID) {
+            drawer.closeDrawer();
+            return true;
+        }
+
+        return false;
+    }
+
     private class ProgressBarAnimation extends Animation {
         private ProgressBar progressBar;
         private float from;
@@ -362,18 +412,22 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
                 switch (action) {
                     case MLDPConnectionService.ACTION_CONNECTED:
                         continueButton.setEnabled(true);
+                        setBusy(false);
                         status = "Connected to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
                         break;
                     case MLDPConnectionService.ACTION_DISCONNECTED:
-                        continueButton.setEnabled(false);
+                        continueButton.setEnabled(true);
+                        setBusy(false);
                         status = "Disconnected from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
                         break;
                     case MLDPConnectionService.ACTION_CONNECTING:
                         continueButton.setEnabled(false);
+                        setBusy(true);
                         status = "Connecting to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
                         break;
                     case MLDPConnectionService.ACTION_DISCONNECTING:
                         continueButton.setEnabled(false);
+                        setBusy(true);
                         status = "Disconnecting from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
                         break;
                 }
@@ -385,8 +439,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     private void setBusy(long time) {
         if (time > 0) {
-            isBusy = true;
-            devicesListView.setOnItemClickListener(null);
+            setBusy(true);
             Handler handler = new Handler();
             handler.postDelayed(new Runnable() {
                 @Override
@@ -395,10 +448,19 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
                 }
             }, time);
         } else {
-            isBusy = false;
-            devicesListView.setOnItemClickListener(this);
+            setBusy(false);
         }
+    }
 
+    private void setBusy(boolean isBusy) {
+        this.isBusy = isBusy;
+        if (isBusy) {
+            devicesListView.setOnItemClickListener(null);
+            continueButton.setEnabled(false);
+        } else {
+            devicesListView.setOnItemClickListener(this);
+            continueButton.setEnabled(true);
+        }
         invalidateOptionsMenu();
     }
 }
