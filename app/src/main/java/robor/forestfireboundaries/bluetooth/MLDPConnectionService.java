@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import robor.forestfireboundaries.BaseApplication;
 import robor.forestfireboundaries.protobuf.HeaderProtos;
@@ -30,6 +31,7 @@ import robor.forestfireboundaries.protobuf.HeaderProtos;
 import rx.Observable;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
+import rx.subjects.PublishSubject;
 
 public class MLDPConnectionService extends Service {
 
@@ -64,6 +66,8 @@ public class MLDPConnectionService extends Service {
     private int bytesRead = 0;
 
     private static Queue<ByteString> messageQueue = new LinkedList<>();
+
+    private PublishSubject<Void> disconnectTriggerSubject = PublishSubject.create();
 
     public static IntentFilter connectionStateIntentFilter() {
         IntentFilter intentFilter = new IntentFilter();
@@ -100,6 +104,7 @@ public class MLDPConnectionService extends Service {
                 .subscribe(this::onConnectionStateChanged, throwable -> Log.d(TAG, throwable.getMessage()));
 
         connectionSubscription = rxBleDevice.establishConnection(false)
+                .takeUntil(disconnectTriggerSubject)
                 .observeOn(AndroidSchedulers.mainThread())
                 .doOnError(throwable -> Log.d(TAG, "establishConnection: " + throwable.getMessage()))
                 .retry(2)

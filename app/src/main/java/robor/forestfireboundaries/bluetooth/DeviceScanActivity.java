@@ -30,6 +30,8 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mikepenz.iconics.IconicsDrawable;
+import com.mikepenz.material_design_iconic_typeface_library.MaterialDesignIconic;
 import com.mikepenz.materialdrawer.Drawer;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
 import com.polidea.rxandroidble.RxBleClient;
@@ -38,6 +40,8 @@ import com.polidea.rxandroidble.exceptions.BleScanException;
 import com.polidea.rxandroidble.internal.RxBleLog;
 import com.polidea.rxandroidble.scan.ScanFilter;
 import com.polidea.rxandroidble.scan.ScanSettings;
+
+import java.util.ArrayList;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -51,14 +55,12 @@ import rx.android.schedulers.AndroidSchedulers;
 public class DeviceScanActivity extends AppCompatActivity implements AdapterView.OnItemClickListener,
         ScanResultsAdapter.OnScanResultAddedListener, Drawer.OnDrawerItemClickListener {
 
-    private static final String TAG = DeviceScanActivity.class.getSimpleName();
-
-    private static final String STATUS_SCANNING = "Scanning...";
-    private static final String STATUS_NO_DEVICES_FOUND = "No devices found, please retry a scan...";
-
     public static final int REQUEST_ENABLE_BLUETOOTH = 1;
     public static final int REQUEST_PERMISSION_LOCATION = 2;
-
+    private static final String TAG = DeviceScanActivity.class.getSimpleName();
+    private static final String DEVICE_LIST = "DeviceList";
+    private static final String STATUS_SCANNING = "Scanning...";
+    private static final String STATUS_NO_DEVICES_FOUND = "No devices found, please retry a scan...";
     private static final long SCAN_TIME = 5000;
 
     private static final ScanSettings SCAN_SETTINGS = new ScanSettings.Builder()
@@ -73,12 +75,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     private static final ScanFilter SCAN_FILTER_TRANSPARENT_PRIVATE_SERVICE = new ScanFilter.Builder()
             .setServiceUuid(new ParcelUuid(Constants.UUID_TRANSPARENT_PRIVATE_SERVICE))
             .build();
-
-    private ScanResultsAdapter  scanResultsAdapter;
-    private RxBleClient         rxBleClient;
-    private Subscription        scanSubscription;
-    private Handler             stopScanHandler;
-
     @BindView(R.id.status_text_field)
     TextView statusTextField;
     @BindView(R.id.progress_bar)
@@ -89,10 +85,47 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     Button continueButton;
     @BindView(R.id.toolbar)
     Toolbar toolbar;
-
+    private ScanResultsAdapter scanResultsAdapter;
+    private RxBleClient rxBleClient;
+    private Subscription scanSubscription;
+    private Handler stopScanHandler;
     private Drawer drawer;
 
     private boolean isBusy = false;
+    private BroadcastReceiver connectionStateReceiver = new BroadcastReceiver() {
+        String status = "";
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (action != null) {
+                switch (action) {
+                    case MLDPConnectionService.ACTION_CONNECTED:
+                        continueButton.setEnabled(true);
+                        setBusy(false);
+                        status = "Connected to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_DISCONNECTED:
+                        continueButton.setEnabled(true);
+                        setBusy(false);
+                        status = "Disconnected from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_CONNECTING:
+                        continueButton.setEnabled(false);
+                        setBusy(true);
+                        status = "Connecting to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                    case MLDPConnectionService.ACTION_DISCONNECTING:
+                        continueButton.setEnabled(false);
+                        setBusy(true);
+                        status = "Disconnecting from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
+                        break;
+                }
+            }
+            statusTextField.setText(status);
+            scanResultsAdapter.notifyDataSetChanged();
+        }
+    };
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -123,6 +156,17 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             startActivity(intent);
         });
 
+        registerReceiver(connectionStateReceiver, MLDPConnectionService.connectionStateIntentFilter());
+
+        if (savedInstanceState != null) {
+            @SuppressWarnings("unchecked")
+            ArrayList<BleDeviceSerializable> devices = (ArrayList<BleDeviceSerializable>) savedInstanceState.getSerializable(DEVICE_LIST);
+            if (devices != null) {
+                for (BleDeviceSerializable device : devices) {
+                    scanResultsAdapter.addDevice(device);
+                }
+            }
+        }
         Log.d(TAG, "onCreate()");
     }
 
@@ -132,10 +176,14 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putSerializable(DEVICE_LIST, scanResultsAdapter.getDevices());
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
-
-        registerReceiver(connectionStateReceiver, MLDPConnectionService.connectionStateIntentFilter());
 
         if (drawer.isDrawerOpen()) {
             drawer.closeDrawer();
@@ -157,7 +205,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
         Log.d(TAG, "onPause()");
 
-        unregisterReceiver(connectionStateReceiver);
 //        unregisterReceiver(dataAvailableReceiver);
 
         if (isScanning()) {
@@ -182,6 +229,8 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
         Log.d(TAG, "onDestroy()");
 
+        unregisterReceiver(connectionStateReceiver);
+
         if (isScanning()) {
             clearSubscription();
         }
@@ -192,6 +241,10 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         getMenuInflater().inflate(R.menu.activity_device_scan_menu, menu);
 
         menu.findItem(R.id.menu_item_in_progress).setActionView(new ProgressBar(this));
+        menu.findItem(R.id.menu_item_scan).setIcon(new IconicsDrawable(this)
+                .icon(MaterialDesignIconic.Icon.gmi_search)
+                .color(getResources().getColor(R.color.colorPrimaryDark))
+                .sizeDp(24));
 
         if (isBusy) {
             menu.findItem(R.id.menu_item_scan).setVisible(false);
@@ -218,7 +271,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
-        final RxBleDevice device = scanResultsAdapter.getItem(position);
+        final BleDeviceSerializable device = scanResultsAdapter.getItem(position);
         if (BaseApplication.isMLDPConnectionServiceBound()) {
             if (BaseApplication.getMLDPConnectionService().isConnected()) {
                 RxBleDevice connectedDevice = BaseApplication.getMLDPConnectionService().getConnectedDevice();
@@ -235,7 +288,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
                         public void run() {
                             BaseApplication.getMLDPConnectionService().connect(device.getMacAddress());
                         }
-                    },1500);
+                    }, 1500);
                 }
             } else {
                 Log.d(TAG, "(CONNECT) " + device.getMacAddress());
@@ -268,7 +321,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         if (ready()) {
             scanResultsAdapter.clearScanResults();
             if (BaseApplication.getMLDPConnectionService().isConnected()) {
-                scanResultsAdapter.addDevice(BaseApplication.getMLDPConnectionService().getConnectedDevice());
+                scanResultsAdapter.addDevice(new BleDeviceSerializable(BaseApplication.getMLDPConnectionService().getConnectedDevice()));
             }
 
             statusTextField.setText(STATUS_SCANNING);
@@ -326,7 +379,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        switch(requestCode) {
+        switch (requestCode) {
             case REQUEST_ENABLE_BLUETOOTH:
                 if (resultCode == Activity.RESULT_OK) {
                     startScan();
@@ -340,7 +393,7 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch(requestCode) {
+        switch (requestCode) {
             case REQUEST_PERMISSION_LOCATION:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     startScan();
@@ -355,8 +408,8 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
 
     @SuppressLint("SetTextI18n")
     @Override
-    public void onScanResultAdded(RxBleDevice rxBleDevice) {
-        Log.d(TAG, "Scan result added: " + rxBleDevice.getName() + "(" + rxBleDevice.getMacAddress() + ")");
+    public void onScanResultAdded(BleDeviceSerializable bleDeviceSerializable) {
+        Log.d(TAG, "Scan result added: " + bleDeviceSerializable.getName() + "(" + bleDeviceSerializable.getMacAddress() + ")");
 
         int count = scanResultsAdapter.getCount();
 
@@ -383,60 +436,6 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
         return false;
     }
 
-    private class ProgressBarAnimation extends Animation {
-        private ProgressBar progressBar;
-        private float from;
-        private float to;
-
-        ProgressBarAnimation(ProgressBar progressBar, float from, float to) {
-            super();
-            this.progressBar = progressBar;
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        protected void applyTransformation(float interpolatedTime, Transformation t) {
-            super.applyTransformation(interpolatedTime, t);
-            float value = from + (to - from) * interpolatedTime;
-            progressBar.setProgress((int) value);
-        }
-    }
-
-    private BroadcastReceiver connectionStateReceiver = new BroadcastReceiver() {
-        String status = "";
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action != null) {
-                switch (action) {
-                    case MLDPConnectionService.ACTION_CONNECTED:
-                        continueButton.setEnabled(true);
-                        setBusy(false);
-                        status = "Connected to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
-                        break;
-                    case MLDPConnectionService.ACTION_DISCONNECTED:
-                        continueButton.setEnabled(true);
-                        setBusy(false);
-                        status = "Disconnected from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
-                        break;
-                    case MLDPConnectionService.ACTION_CONNECTING:
-                        continueButton.setEnabled(false);
-                        setBusy(true);
-                        status = "Connecting to " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
-                        break;
-                    case MLDPConnectionService.ACTION_DISCONNECTING:
-                        continueButton.setEnabled(false);
-                        setBusy(true);
-                        status = "Disconnecting from " + intent.getStringExtra(MLDPConnectionService.INTENT_EXTRA_NAME);
-                        break;
-                }
-            }
-            statusTextField.setText(status);
-            scanResultsAdapter.notifyDataSetChanged();
-        }
-    };
-
     private void setBusy(long time) {
         if (time > 0) {
             setBusy(true);
@@ -462,5 +461,25 @@ public class DeviceScanActivity extends AppCompatActivity implements AdapterView
             continueButton.setEnabled(true);
         }
         invalidateOptionsMenu();
+    }
+
+    private class ProgressBarAnimation extends Animation {
+        private ProgressBar progressBar;
+        private float from;
+        private float to;
+
+        ProgressBarAnimation(ProgressBar progressBar, float from, float to) {
+            super();
+            this.progressBar = progressBar;
+            this.from = from;
+            this.to = to;
+        }
+
+        @Override
+        protected void applyTransformation(float interpolatedTime, Transformation t) {
+            super.applyTransformation(interpolatedTime, t);
+            float value = from + (to - from) * interpolatedTime;
+            progressBar.setProgress((int) value);
+        }
     }
 }

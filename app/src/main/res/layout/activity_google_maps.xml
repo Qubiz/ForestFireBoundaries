@@ -1,18 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:id="@+id/drawer_layout_activity_google_maps">
 
     <include layout="@layout/toolbar"/>
 
-    <fragment
+    <fragment class="com.google.android.gms.maps.MapFragment"
         android:id="@+id/map"
-        class="com.google.android.gms.maps.MapFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
     </fragment>
 
+    <!-- Your FAB implementation -->
+    <robor.forestfireboundaries.fab.Fab
+        android:id="@+id/fab"
+        style="@style/Widget.MaterialSheetFab.Fab"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:layout_margin="16dp" />
 
+    <!-- Overlay that dims the screen -->
+    <com.gordonwong.materialsheetfab.DimOverlayFrameLayout
+        android:id="@+id/fab_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Circular reveal container for the sheet -->
+    <io.codetail.widget.RevealLinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="end|bottom"
+        android:orientation="vertical">
+
+        <!-- Sheet that contains your items -->
+        <android.support.v7.widget.CardView
+            android:id="@+id/fab_sheet"
+            style="@style/Widget.MaterialSheetFab.Sheet">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/fab_sheet_item_locate"
+                    style="@style/TextAppearance.MaterialSheetFab.Sheet.Item"
+                    android:text="{gmi-gps-dot} Locate"/>
+
+                <TextView
+                    android:id="@+id/fab_sheet_item_clear"
+                    style="@style/TextAppearance.MaterialSheetFab.Sheet.Item"
+                    android:text="{gmi-pin-off} Clear"/>
+
+                <TextView
+                    android:id="@+id/fab_sheet_item_export"
+                    style="@style/TextAppearance.MaterialSheetFab.Sheet.Item"
+                    android:text="{gmi-file} Export as KML..."/>
+
+            </LinearLayout>
+
+            <!-- TODO: Put your sheet items here -->
+
+        </android.support.v7.widget.CardView>
+    </io.codetail.widget.RevealLinearLayout>
 </RelativeLayout>

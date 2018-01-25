@@ -18,7 +18,6 @@ public class HotspotMarker extends DotMarker implements Serializable {
 
     public HotspotMarker(HotspotDataProtos.Hotspot hotspot, Context context) {
         super(new LatLng(hotspot.getLatitude(), hotspot.getLongitude()), context);
-        // TODO: Set color depending on hotspot temperature.
         this.hotspot = hotspot;
         setSnippet("Temperature: " + hotspot.getTemperature() + " \u2103");
     }

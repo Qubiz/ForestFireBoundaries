@@ -1,8 +1,13 @@
 package robor.forestfireboundaries.data;
 
+import android.graphics.Color;
+import android.util.Log;
+
 import com.google.android.gms.maps.GoogleMap;
 
 import java.util.ArrayList;
+
+import robor.forestfireboundaries.LinearGradient;
 
 /**
  * Created by Mathijs de Groot on 22/01/2018.
@@ -12,22 +17,17 @@ public class HotspotMarkerLayer {
 
     private static final String TAG = HotspotMarkerLayer.class.getSimpleName();
 
-    /**
-     * List of markers on this layer
-     */
     private ArrayList<HotspotMarker> markers;
-
-    /**
-     * The GoogleMap this layer is displayed on
-     */
     private GoogleMap googleMap;
-
-    /**
-     * Determines whether the layer is visible on the GoogleMap.
-     */
     private boolean visible = false;
 
     private LayerChangeListener layerChangeListener;
+
+    private static final int[] GRADIENT_COLORS = new int[] {Color.rgb(255,255,102), Color.YELLOW, Color.RED};
+    private static final LinearGradient linearGradient = new LinearGradient(GRADIENT_COLORS);
+
+    private double minValue = 0;
+    private double maxValue = 1000;
 
     public HotspotMarkerLayer(LayerChangeListener layerChangeListener) {
         markers = new ArrayList<>();
@@ -35,7 +35,8 @@ public class HotspotMarkerLayer {
     }
 
     public HotspotMarkerLayer(ArrayList<HotspotMarker> markers, LayerChangeListener layerChangeListener) {
-        this.markers = markers;
+        this.markers = new ArrayList<>();
+        addMarkers(markers);
         this.layerChangeListener = layerChangeListener;
     }
 
@@ -50,14 +51,30 @@ public class HotspotMarkerLayer {
         if (isLayerAddedToMap()) {
             marker.addToMap(googleMap);
         }
+
+        double value = marker.getHotspot().getTemperature();
+
+        minValue = (minValue > value) ? value : minValue;
+        maxValue = (maxValue < value) ? value : maxValue;
+
         markers.add(marker);
         layerChangeListener.onMarkerAdded(marker);
+
+        updateColors();
     }
 
     public void removeMarker(int index) {
         if (index < markers.size() && index >= 0) {
             HotspotMarker marker = markers.remove(index);
             marker.removeFromMap();
+            layerChangeListener.onMarkerRemoved(marker);
+        }
+    }
+
+    public void removeMarker(HotspotMarker marker) {
+        if (!markers.isEmpty()) {
+            marker.removeFromMap();
+            markers.remove(marker);
             layerChangeListener.onMarkerRemoved(marker);
         }
     }
@@ -94,6 +111,14 @@ public class HotspotMarkerLayer {
         googleMap = null;
     }
 
+    public void clear() {
+        if (isLayerAddedToMap()) {
+            googleMap.clear();
+        }
+
+        markers.clear();
+    }
+
     public void setVisible(boolean visible) {
         for (HotspotMarker marker : markers) {
             marker.setVisible(visible);
@@ -117,5 +142,18 @@ public class HotspotMarkerLayer {
 
     public ArrayList<HotspotMarker> getMarkers() {
         return markers;
+    }
+
+    private void updateColors() {
+        double r;
+        for (HotspotMarker marker : markers) {
+            r = normalize(marker.getHotspot().getTemperature(), minValue, maxValue);
+            Log.d(TAG, "normalized value: " + r);
+            marker.setColor(linearGradient.getColor(r));
+        }
+    }
+
+    private double normalize(double value, double min, double max) {
+        return (value - min) / (max - min);
     }
 }

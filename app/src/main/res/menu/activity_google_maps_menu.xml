@@ -9,8 +9,7 @@
     <item
         android:id="@+id/bluetooth_status"
         android:title=""
-        android:icon="@drawable/bluetooth_white_96x96"
-        app:showAsAction="always">
+        app:showAsAction="always|withText">
     </item>
 
     <item
