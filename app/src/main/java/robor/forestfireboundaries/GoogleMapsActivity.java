@@ -4,15 +4,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
-import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
-import android.support.design.widget.FloatingActionButton;
 import android.support.v4.view.LayoutInflaterCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.CardView;
 import android.support.v7.widget.Toolbar;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -24,13 +20,9 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.maps.android.data.geojson.GeoJsonLayer;
-import com.google.maps.android.data.geojson.GeoJsonPoint;
-import com.google.maps.android.data.kml.KmlLayer;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.gordonwong.materialsheetfab.MaterialSheetFab;
-import com.gordonwong.materialsheetfab.MaterialSheetFabEventListener;
 import com.mikepenz.iconics.IconicsDrawable;
 import com.mikepenz.iconics.context.IconicsLayoutInflater2;
 import com.mikepenz.material_design_iconic_typeface_library.MaterialDesignIconic;
@@ -38,7 +30,6 @@ import com.mikepenz.materialdrawer.Drawer;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
 
 import java.util.ArrayList;
-import java.util.Random;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -49,13 +40,13 @@ import robor.forestfireboundaries.bluetooth.MLDPConnectionService;
 import robor.forestfireboundaries.bluetooth.MLDPDataReceiverService;
 import robor.forestfireboundaries.data.HotspotMarker;
 import robor.forestfireboundaries.data.HotspotMarkerLayer;
+import robor.forestfireboundaries.data.export.GeoJsonExport;
 import robor.forestfireboundaries.drawer.DrawerNavigation;
 import robor.forestfireboundaries.fab.Fab;
 import robor.forestfireboundaries.protobuf.HeaderProtos;
 import robor.forestfireboundaries.protobuf.HotspotDataProtos;
 
 import android.view.View;
-import android.widget.TextView;
 
 /**
  * Created by Mathijs de Groot on 27/10/2017.
@@ -101,6 +92,11 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
             }
         }
         materialSheetFab.hideSheet();
+    }
+
+    @OnClick(R.id.fab_sheet_item_export)
+    public void exportLayer() {
+        GeoJsonExport.writeGeoJSONFrom(hotspotMarkersLayer, "test");
     }
 
     private Drawer drawer;
