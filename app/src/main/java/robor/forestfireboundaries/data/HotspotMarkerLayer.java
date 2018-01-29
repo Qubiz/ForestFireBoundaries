@@ -27,7 +27,7 @@ public class HotspotMarkerLayer {
     private static final LinearGradient linearGradient = new LinearGradient(GRADIENT_COLORS);
 
     private double minValue = 0;
-    private double maxValue = 1000;
+    private double maxValue = 0;
 
     public HotspotMarkerLayer(LayerChangeListener layerChangeListener) {
         markers = new ArrayList<>();
@@ -53,6 +53,11 @@ public class HotspotMarkerLayer {
         }
 
         double value = marker.getHotspot().getTemperature();
+
+        if (minValue == 0 && maxValue == 0) {
+            minValue = value;
+            maxValue = value;
+        }
 
         minValue = (minValue > value) ? value : minValue;
         maxValue = (maxValue < value) ? value : maxValue;

@@ -11,9 +11,11 @@ import android.util.Log;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.io.EOFException;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import okio.Buffer;
 import robor.forestfireboundaries.protobuf.HeaderProtos;
 
 /**
@@ -32,6 +34,11 @@ public class MLDPDataReceiverService extends Service {
     private static ByteString byteStringBuffer = ByteString.EMPTY;
     private int bytesToRead = -1;
     private int bytesRead = 0;
+
+    boolean inSync = false;
+
+    private Buffer buffer = new Buffer();
+    private Buffer messageBuffer = new Buffer();
 
     public static IntentFilter messageAvailableIntentFilter() {
         IntentFilter intentFilter = new IntentFilter();
@@ -55,8 +62,19 @@ public class MLDPDataReceiverService extends Service {
         return super.onUnbind(intent);
     }
 
-    public void onDataReceived(byte[] data) {
+    public void onDataReceived(byte[] data) throws EOFException {
+        buffer.write(data);
+
+        if (!inSync) {
+            if (buffer.size() >= 4) {
+                okio.ByteString byteString = buffer.readByteString();
+
+            }
+        }
+
+        /* OLD START */
         byteStringBuffer = byteStringBuffer.concat(ByteString.copyFrom(data));
+
         bytesRead += data.length;
 
         if (bytesRead >= 10 && bytesToRead == -1) {
@@ -104,6 +122,7 @@ public class MLDPDataReceiverService extends Service {
             // TODO: Create a timeout??
             Log.d(TAG, "Header has not yet been fully received... [" + bytesRead + " / 10] bytes" );
         }
+        /* OLD END */
     }
 
     public static ByteString getNextAvailableMessage() {
