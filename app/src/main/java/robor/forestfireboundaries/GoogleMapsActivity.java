@@ -29,6 +29,7 @@ import com.mikepenz.material_design_iconic_typeface_library.MaterialDesignIconic
 import com.mikepenz.materialdrawer.Drawer;
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 import butterknife.BindView;
@@ -96,7 +97,12 @@ public class GoogleMapsActivity extends AppCompatActivity implements OnMapReadyC
 
     @OnClick(R.id.fab_sheet_item_export)
     public void exportLayer() {
-        GeoJsonExport.writeGeoJSONFrom(hotspotMarkersLayer, "test");
+        try {
+            Log.d(TAG, "exportLayer()");
+            GeoJsonExport.writeGeoJSONFrom(hotspotMarkersLayer, "test");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private Drawer drawer;
